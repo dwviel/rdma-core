@@ -569,6 +569,7 @@ if (UDEV_FOUND)
   add_subdirectory(rdma-ndd)
 endif()
 add_subdirectory(srp_daemon)
+add_subdirectory(tcpip_cli_srv)
 
 rdma_finalize_libs()
 
