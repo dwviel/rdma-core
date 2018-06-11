@@ -4,6 +4,9 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.Socket;
+import java.net.InetAddress;
+import java.net.SocketAddress;
+import java.net.InetSocketAddress;
 
 import javax.swing.JOptionPane;
 
@@ -26,11 +29,26 @@ public class DateClient {
             "running the date service on port 9090:");
 	BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
 	String serverAddress = reader.readLine();
+	String addrStr = "Server addr: " + serverAddress;
+	System.out.println(addrStr);
         Socket s = new Socket(serverAddress, 9090);
+
+	InetAddress inetAddr = s.getLocalAddress();
+	String inetAddrStr = inetAddr.getHostAddress();
+	String inetAddrStrOut = "InetAddr: " + inetAddrStr;
+	System.out.println(inetAddrStrOut);
+
+	InetSocketAddress remInetSockAddr = (InetSocketAddress)s.getRemoteSocketAddress();
+	String remInetAddr = remInetSockAddr.getHostString();
+	String remInetAddrStr = "Remote InetAddr: " + remInetAddr;
+	System.out.println(remInetAddrStr);
+
+
         BufferedReader input =
             new BufferedReader(new InputStreamReader(s.getInputStream()));
         String answer = input.readLine();
-	System.out.println(answer);
+	String recvStr = "Received Str: " + answer;
+	System.out.println(recvStr);
         //JOptionPane.showMessageDialog(null, answer);
         System.exit(0);
     }
