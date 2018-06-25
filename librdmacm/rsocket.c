@@ -511,7 +511,7 @@ static int rs_scale_to_value(int value, int bits)
 
 static void rs_configure(void)
 {
-	FILE *f;
+	FILE *f = NULL;
 	static int init;
 
 	if (init)
@@ -1131,8 +1131,9 @@ static int ds_init_ep(struct rsocket *rs)
 
 int rsocket(int domain, int type, int protocol)
 {
-	struct rsocket *rs;
-	int index, ret;
+	struct rsocket *rs = NULL;
+	int index = 0;
+	int ret = 0;
 
 	if ((domain != AF_INET && domain != AF_INET6 && domain != AF_IB) ||
 	    ((type != SOCK_STREAM) && (type != SOCK_DGRAM)) ||

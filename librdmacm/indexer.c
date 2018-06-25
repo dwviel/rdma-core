@@ -135,7 +135,7 @@ nomem:
 
 int idm_set(struct index_map *idm, int index, void *item)
 {
-	void **entry;
+	void **entry = NULL;
 
 	if (index > IDX_MAX_INDEX) {
 		errno = ENOMEM;

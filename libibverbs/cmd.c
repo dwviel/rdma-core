@@ -112,7 +112,7 @@ int ibv_cmd_query_device(struct ibv_context *context,
 			 uint64_t *raw_fw_ver,
 			 struct ibv_query_device *cmd, size_t cmd_size)
 {
-	struct ib_uverbs_query_device_resp resp;
+  struct ib_uverbs_query_device_resp resp = {0};
 
 	IBV_INIT_CMD_RESP(cmd, cmd_size, QUERY_DEVICE, &resp, sizeof resp);
 

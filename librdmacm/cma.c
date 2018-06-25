@@ -167,9 +167,9 @@ static int check_abi_version(void)
  */
 static void ucma_set_af_ib_support(void)
 {
-	struct rdma_cm_id *id;
-	struct sockaddr_ib sib;
-	int ret;
+	struct rdma_cm_id *id = NULL;
+	struct sockaddr_ib sib = {0};
+	int ret=0;
 
 	ret = rdma_create_id(NULL, &id, NULL, RDMA_PS_IB);
 	if (ret)
@@ -189,7 +189,7 @@ static void ucma_set_af_ib_support(void)
 int ucma_init(void)
 {
 	struct ibv_device **dev_list = NULL;
-	int i, ret, dev_cnt;
+	int i=0; int ret=0; int dev_cnt=0;
 
 	/* Quick check without lock to see if we're already initialized */
 	if (cma_dev_cnt)
@@ -485,7 +485,7 @@ static struct cma_id_private *ucma_alloc_id(struct rdma_event_channel *channel,
 					    enum rdma_port_space ps,
 					    enum ibv_qp_type qp_type)
 {
-	struct cma_id_private *id_priv;
+	struct cma_id_private *id_priv = NULL;
 
 	id_priv = calloc(1, sizeof(*id_priv));
 	if (!id_priv)
@@ -519,10 +519,18 @@ static int rdma_create_id2(struct rdma_event_channel *channel,
 			   struct rdma_cm_id **id, void *context,
 			   enum rdma_port_space ps, enum ibv_qp_type qp_type)
 {
-	struct ucma_abi_create_id_resp resp;
-	struct ucma_abi_create_id cmd;
-	struct cma_id_private *id_priv;
-	int ret;
+        struct ucma_abi_create_id_resp resp = { .id = 0U };
+        struct ucma_abi_create_id cmd = { .cmd = 0U,
+	                                  .in = 0U,
+                                          .out = 0U,
+                                          .uid = 0U,
+                                          .response = 0U,
+                                          .ps = 0U,
+                                          .qp_type = 0U,
+                                          .reserved = {0,0,0,0,0} };
+	//cmd.reserved[0]=cmd.reserved[1]=cmd.reserved[2]=cmd.reserved[3]=cmd.reserved[4]=0;
+	struct cma_id_private *id_priv = NULL;
+	int ret = 0;
 
 	ret = ucma_init();
 	if (ret)
@@ -567,7 +575,7 @@ int rdma_create_id(struct rdma_event_channel *channel,
 
 static int ucma_destroy_kern_id(int fd, uint32_t handle)
 {
-	struct ucma_abi_destroy_id_resp resp;
+        struct ucma_abi_destroy_id_resp resp = { .events_reported = 0U };
 	struct ucma_abi_destroy_id cmd;
 	int ret;
 	
@@ -624,10 +632,17 @@ int ucma_addrlen(struct sockaddr *addr)
 
 static int ucma_query_addr(struct rdma_cm_id *id)
 {
-	struct ucma_abi_query_addr_resp resp;
-	struct ucma_abi_query cmd;
-	struct cma_id_private *id_priv;
-	int ret;
+        struct ucma_abi_query_addr_resp resp = { .node_guid = 0U,
+                                                 .port_num = 0U,
+                                                 .reserved = 0U,
+                                                 .pkey = 0U,
+                                                 .src_size = 0U,
+                                                 .dst_size = 0U,
+                                                 .src_addr = {0},
+                                                 .dst_addr = {0} };
+	struct ucma_abi_query cmd = {0};
+	struct cma_id_private *id_priv = NULL;
+	int ret = 0;
 	
 	CMA_INIT_CMD_RESP(&cmd, sizeof cmd, QUERY, &resp, sizeof resp);
 	id_priv = container_of(id, struct cma_id_private, id);
@@ -656,11 +671,11 @@ static int ucma_query_addr(struct rdma_cm_id *id)
 
 static int ucma_query_gid(struct rdma_cm_id *id)
 {
-	struct ucma_abi_query_addr_resp resp;
-	struct ucma_abi_query cmd;
-	struct cma_id_private *id_priv;
-	struct sockaddr_ib *sib;
-	int ret;
+        struct ucma_abi_query_addr_resp resp = {0};
+        struct ucma_abi_query cmd = {0};
+	struct cma_id_private *id_priv = NULL;
+	struct sockaddr_ib *sib = NULL;
+	int ret=0;
 	
 	CMA_INIT_CMD_RESP(&cmd, sizeof cmd, QUERY, &resp, sizeof resp);
 	id_priv = container_of(id, struct cma_id_private, id);
@@ -716,10 +731,10 @@ static void ucma_convert_path(struct ibv_path_data *path_data,
 
 static int ucma_query_path(struct rdma_cm_id *id)
 {
-	struct ucma_abi_query_path_resp *resp;
-	struct ucma_abi_query cmd;
-	struct cma_id_private *id_priv;
-	int ret, i, size;
+        struct ucma_abi_query_path_resp *resp = NULL;
+        struct ucma_abi_query cmd = {0};
+	struct cma_id_private *id_priv = NULL;
+	int ret=0; int i=0; int size=0;
 
 	size = sizeof(*resp) + sizeof(struct ibv_path_data) * 6;
 	resp = alloca(size);
@@ -750,10 +765,10 @@ static int ucma_query_path(struct rdma_cm_id *id)
 
 static int ucma_query_route(struct rdma_cm_id *id)
 {
-	struct ucma_abi_query_route_resp resp;
-	struct ucma_abi_query cmd;
-	struct cma_id_private *id_priv;
-	int ret, i;
+  struct ucma_abi_query_route_resp resp = {0};
+  struct ucma_abi_query cmd = {0};
+	struct cma_id_private *id_priv = NULL;
+	int ret=0; int i=0;
 
 	CMA_INIT_CMD_RESP(&cmd, sizeof cmd, QUERY_ROUTE, &resp, sizeof resp);
 	id_priv = container_of(id, struct cma_id_private, id);
@@ -994,10 +1009,10 @@ static int ucma_is_ud_qp(enum ibv_qp_type qp_type)
 static int rdma_init_qp_attr(struct rdma_cm_id *id, struct ibv_qp_attr *qp_attr,
 			     int *qp_attr_mask)
 {
-	struct ucma_abi_init_qp_attr cmd;
-	struct ib_uverbs_qp_attr resp;
-	struct cma_id_private *id_priv;
-	int ret;
+  struct ucma_abi_init_qp_attr cmd = {0};
+  struct ib_uverbs_qp_attr resp = {0};
+	struct cma_id_private *id_priv = NULL;
+	int ret=0;
 	
 	CMA_INIT_CMD_RESP(&cmd, sizeof cmd, INIT_QP_ATTR, &resp, sizeof resp);
 	id_priv = container_of(id, struct cma_id_private, id);
@@ -2093,7 +2108,11 @@ static void ucma_copy_ud_event(struct cma_event *event,
 int rdma_get_cm_event(struct rdma_event_channel *channel,
 		      struct rdma_cm_event **event)
 {
-	struct ucma_abi_event_resp resp;
+        struct ucma_abi_event_resp resp = { .uid = 0U,
+                                            .id = 0U,
+                                            .event = 0U,
+                                            .status = 0U,
+                                            { .conn = {0} } };
 	struct ucma_abi_get_event cmd;
 	struct cma_event *evt;
 	int ret;

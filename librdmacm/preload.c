@@ -747,7 +747,7 @@ out:
 
 static inline enum fd_type fd_fork_get(int index, int *fd)
 {
-	struct fd_info *fdi;
+	struct fd_info *fdi = NULL;
 
 	fdi = idm_lookup(&idm, index);
 	if (fdi) {
@@ -850,7 +850,7 @@ ssize_t sendmsg(int socket, const struct msghdr *msg, int flags)
 
 ssize_t write(int socket, const void *buf, size_t count)
 {
-	int fd;
+	int fd = 0;
 	init_preload();
 	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
 		rwrite(fd, buf, count) : real.write(fd, buf, count);
@@ -858,7 +858,7 @@ ssize_t write(int socket, const void *buf, size_t count)
 
 ssize_t writev(int socket, const struct iovec *iov, int iovcnt)
 {
-	int fd;
+	int fd = 0;
 	init_preload();
 	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
 		rwritev(fd, iov, iovcnt) : real.writev(fd, iov, iovcnt);
