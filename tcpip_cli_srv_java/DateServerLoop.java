@@ -30,14 +30,19 @@ public class DateServerLoop {
 		    new PrintWriter(socket.getOutputStream(), true);
 		out.println(new Date().toString());
 
-		try        
-		{
-		    Thread.sleep(1000);  // 1000 ms
-		} 
-		catch(InterruptedException ex) 
-		{
-		    Thread.currentThread().interrupt();
-		}
+		if(args.length > 0)
+		    {
+
+			try        
+			    {
+				Thread.sleep(1000);  // 1000 ms
+			    } 
+			catch(InterruptedException ex) 
+			    {
+				Thread.currentThread().interrupt();
+			    }
+		    }
+		
 	    }
 	}
         finally 
