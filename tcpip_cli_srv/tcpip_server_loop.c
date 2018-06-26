@@ -16,7 +16,7 @@
 #include <signal.h>
 #include <time.h>
 
-#define PORT "3490"  // the port users will be connecting to
+#define PORT "9090"  // the port users will be connecting to
 
 #define BACKLOG 10	 // how many pending connections queue will hold
 
@@ -86,6 +86,8 @@ int main(void)
 			exit(1);
 		}
 
+		char *addrname = inet_ntoa(((struct sockaddr_in*)p->ai_addr)->sin_addr);
+		//printf("binding to address: %s \n", addrname );
 		if (bind(sockfd, p->ai_addr, p->ai_addrlen) == -1) {
 			close(sockfd);
 			perror("server: bind");
