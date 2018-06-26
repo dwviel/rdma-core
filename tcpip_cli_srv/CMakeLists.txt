@@ -6,3 +6,6 @@ rdma_executable(tcpip_client tcpip_client.c)
 rdma_executable(tcpip_server tcpip_server.c)
 #target_link_libraries(mckey LINK_PRIVATE rdmacm ${CMAKE_THREAD_LIBS_INIT})
 
+rdma_executable(tcpip_client_loop tcpip_client_loop.c)
+
+rdma_executable(tcpip_server_loop tcpip_server_loop.c)
