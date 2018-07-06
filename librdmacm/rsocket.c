@@ -1088,6 +1088,9 @@ static int ds_init(struct rsocket *rs, int domain)
 	if (rs->udp_sock < 0)
 		return rs->udp_sock;
 
+	rs->sqe_avail = rs->sq_size;
+	rs->rqe_avail = rs->rq_size;
+
 	rs->epfd = epoll_create(2);
 	if (rs->epfd < 0)
 		return rs->epfd;
@@ -1110,8 +1113,9 @@ static int ds_init_ep(struct rsocket *rs)
 	if (!rs->dmsg)
 		return ERR(ENOMEM);
 
-	rs->sqe_avail = rs->sq_size;
-	rs->rqe_avail = rs->rq_size;
+	// Moved to ds_init
+	//rs->sqe_avail = rs->sq_size;
+	//rs->rqe_avail = rs->rq_size;
 
 	rs->smsg_free = (struct ds_smsg *) rs->sbuf;
 	msg = rs->smsg_free;
@@ -3310,7 +3314,10 @@ int rclose(int socket)
 
 	rs = idm_lookup(&idm, socket);
 	if (!rs)
-		return EBADF;
+	{
+	    errno = EBADF;
+	    return -1;
+	}
 	if (rs->type == SOCK_STREAM) {
 		if (rs->state & rs_connected)
 			rshutdown(socket, SHUT_RDWR);
