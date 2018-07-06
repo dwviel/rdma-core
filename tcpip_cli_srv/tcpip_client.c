@@ -37,8 +37,8 @@ int main(int argc, char *argv[])
 	int rv;
 	char s[INET6_ADDRSTRLEN];
 
-	if (argc != 2) {
-	    fprintf(stderr,"usage: client hostname\n");
+	if (argc < 2) {
+	    fprintf(stderr,"usage: client hostname [udp]\n");
 	    exit(1);
 	}
 
