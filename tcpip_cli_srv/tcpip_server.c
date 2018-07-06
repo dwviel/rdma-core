@@ -1,6 +1,5 @@
 /*
 ** server.c -- a stream socket server demo
-** Any second arg means use UDP.  e.g. udp
 */
 
 #include <stdio.h>
@@ -57,15 +56,7 @@ int main(int argc, char *argv[])
 	memset(&hints, 0, sizeof hints);
 	//hints.ai_family = AF_UNSPEC;
 	hints.ai_family = AF_INET;
-
-	if(argc == 2)
-	{
-	    hints.ai_socktype = SOCK_DGRAM;
-	}
-	else
-	{
-	    hints.ai_socktype = SOCK_STREAM;
-	}
+	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE; // use my IP, that is ANY IP, so returns "wildcard" addr
 
 	if ((rv = getaddrinfo(NULL, PORT, &hints, &servinfo)) != 0) {
