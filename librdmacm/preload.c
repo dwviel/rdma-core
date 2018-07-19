@@ -92,6 +92,9 @@ struct socket_calls {
 	int (*fxstat)(int ver, int fd, struct stat *buf);
 };
 
+
+static __thread int recursive = 0;
+
 static struct socket_calls real;
 static struct socket_calls rs;
 
@@ -531,7 +534,7 @@ static void set_rsocket_options(int rsocket)
 
 int socket(int domain, int type, int protocol)
 {
-	static __thread int recursive;
+  //static __thread int recursive;
 	int index, ret;
 
 	init_preload();
@@ -836,9 +839,19 @@ ssize_t sendto(int socket, const void *buf, size_t len, int flags,
 		const struct sockaddr *dest_addr, socklen_t addrlen)
 {
 	int fd;
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rsendto(fd, buf, len, flags, dest_addr, addrlen) :
-		real.sendto(fd, buf, len, flags, dest_addr, addrlen);
+	if(fd_fork_get(socket, &fd) == fd_rsocket) 
+	  {
+	    int ret = 0;
+	    recursive = 1;
+	    ret = rsendto(fd, buf, len, flags, dest_addr, addrlen);
+	    recursive = 0;
+	    return ret;
+	  }
+	else
+	  {
+	    return real.sendto(fd, buf, len, flags, dest_addr, addrlen);
+	  }
+
 }
 
 ssize_t sendmsg(int socket, const struct msghdr *msg, int flags)
