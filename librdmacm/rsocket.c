@@ -1157,11 +1157,19 @@ int rsocket(int domain, int type, int protocol)
 		rs->cm_id->route.addr.src_addr.sa_family = domain;
 		index = rs->cm_id->channel->fd;
 	} else {
-		ret = ds_init(rs, domain);
+		ret = rdma_create_id(NULL, &rs->cm_id, rs, RDMA_PS_UDP);
 		if (ret)
 			goto err;
 
-		index = rs->udp_sock;
+		rs->cm_id->route.addr.src_addr.sa_family = domain;
+		index = rs->cm_id->channel->fd;
+
+
+	  //ret = ds_init(rs, domain);
+	  //	if (ret)
+	  //		goto err;
+
+	  //	index = rs->udp_sock;
 	}
 
 	ret = rs_insert(rs, index);
