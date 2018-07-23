@@ -37,6 +37,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <sys/ioctl.h>
 #include <sys/sendfile.h>
 #include <stdarg.h>
 #include <dlfcn.h>
@@ -90,6 +91,7 @@ struct socket_calls {
 	int (*dup2)(int oldfd, int newfd);
 	ssize_t (*sendfile)(int out_fd, int in_fd, off_t *offset, size_t count);
 	int (*fxstat)(int ver, int fd, struct stat *buf);
+        int (*ioctl)(int d, int request, char *argp);
 };
 
 
@@ -414,6 +416,7 @@ static void init_preload(void)
 	real.dup2 = dlsym(RTLD_NEXT, "dup2");
 	real.sendfile = dlsym(RTLD_NEXT, "sendfile");
 	real.fxstat = dlsym(RTLD_NEXT, "__fxstat");
+	real.ioctl = dlsym(RTLD_NEXT, "ioctl");
 
 	rs.socket = dlsym(RTLD_DEFAULT, "rsocket");
 	rs.bind = dlsym(RTLD_DEFAULT, "rbind");
@@ -1198,4 +1201,38 @@ int __fxstat(int ver, int socket, struct stat *buf)
 		ret = real.fxstat(ver, fd, buf);
 	}
 	return ret;
+}
+
+int ioctl(int fd, unsigned long int request, ...)
+{
+    // Assumes that fd is a real socket fd, but the fd returned by rsocket()
+    // is not, so we must create a real socket and then call the real ioctl()
+
+    int errcode = 0;
+   
+    va_list valist;
+
+    va_start(valist, request);
+
+    // Do single pointer arg for now.
+    struct ifconf *conf = va_arg(valist, int);
+    
+    va_end(valist);
+
+    // create a local datagram socket
+    int realfd = real.socket(AF_INET, SOCK_DGRAM, 0);
+    if(realfd <= 0)
+    {
+	errcode = EBADF;
+	goto error;
+    }
+
+
+    return real.ioctl(realfd, request, (char*)conf);
+
+    close(realfd);
+
+error:
+    errno = errcode;
+    return -1;
 }
