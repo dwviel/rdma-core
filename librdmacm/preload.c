@@ -37,7 +37,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <sys/ioctl.h>
+//#include <sys/ioctl.h>
 #include <sys/sendfile.h>
 #include <stdarg.h>
 #include <dlfcn.h>
@@ -1203,21 +1203,21 @@ int __fxstat(int ver, int socket, struct stat *buf)
 	return ret;
 }
 
-int ioctl(int fd, unsigned long int request, ...)
+int ioctl(int fd, unsigned long request, char *argp)
 {
     // Assumes that fd is a real socket fd, but the fd returned by rsocket()
     // is not, so we must create a real socket and then call the real ioctl()
 
     int errcode = 0;
    
-    va_list valist;
+    //va_list valist;
 
-    va_start(valist, request);
+    //va_start(valist, request);
 
     // Do single pointer arg for now.
-    struct ifconf *conf = va_arg(valist, int);
+    //struct ifconf *conf = va_arg(valist, int);
     
-    va_end(valist);
+    //va_end(valist);
 
     // create a local datagram socket
     int realfd = real.socket(AF_INET, SOCK_DGRAM, 0);
@@ -1228,7 +1228,8 @@ int ioctl(int fd, unsigned long int request, ...)
     }
 
 
-    return real.ioctl(realfd, request, (char*)conf);
+    return real.ioctl(realfd, request, argp);
+    //return real.ioctl(realfd, request, (char*)conf);
 
     close(realfd);
 
