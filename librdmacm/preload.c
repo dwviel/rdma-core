@@ -600,8 +600,17 @@ int accept(int socket, struct sockaddr *addr, socklen_t *addrlen)
 {
     int fd, index, ret;
 
+
+    int type = 0;
+    unsigned int length = sizeof(int);
+    if(getsockopt(socket, SOL_SOCKET, SO_TYPE, &type, &length) < 0)
+    {
+	//errno = ENFILE;  // What errno to set????
+	return -1;
+    }
+
 	if (fd_get(socket, &fd) == fd_rsocket) {
-	    index = real.accept(socket, addr, addrlen); //fd_open(domain, type, protocol);
+	    index = fd_open(AF_INET, type, 0); //fd_open(domain, type, protocol);
 	    if (index < 0)
 		return index;
 
@@ -616,13 +625,6 @@ int accept(int socket, struct sockaddr *addr, socklen_t *addrlen)
 	} else if (fd_gets(socket) == fd_fork_listen) {
 	    // if real then fd == socket
 	    // Not sure what to do here !!!!
-	    int type = 0;
-	    unsigned int length = sizeof(int);
-	    if(getsockopt(socket, SOL_SOCKET, SO_TYPE, &type, &length) < 0)
-	    {
-		//errno = ENFILE;  // What errno to set????
-		return -1;
-	    }
 	    index = fd_open(AF_INET, type, 0);  // create a socket to use fd
 	    if (index < 0)
 	    	return index;
