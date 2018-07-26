@@ -257,7 +257,7 @@ static int intercept_socket(int domain, int type, int protocol)
 	return 0;
 }
 
-static int fd_open(void)
+static int fd_open(int domain, int type, int protocol)
 {
 	struct fd_info *fdi;
 	int ret, index;
@@ -266,7 +266,12 @@ static int fd_open(void)
 	if (!fdi)
 		return ERR(ENOMEM);
 
-	index = open("/dev/null", O_RDONLY);
+	//index = open("/dev/null", O_RDONLY);
+	
+	// Create real shadow socket to return to user
+	// and use as index to rsocket.
+	index = socket(domain, type, protocol);
+
 	if (index < 0) {
 		ret = index;
 		goto err1;
@@ -545,7 +550,7 @@ int socket(int domain, int type, int protocol)
 	if (recursive || !intercept_socket(domain, type, protocol))
 		goto real;
 
-	index = fd_open();
+	index = fd_open(domain, type, protocol);
 	if (index < 0)
 		return index;
 
@@ -593,36 +598,45 @@ int listen(int socket, int backlog)
 
 int accept(int socket, struct sockaddr *addr, socklen_t *addrlen)
 {
-	int fd, index, ret;
+    int fd, index, ret;
 
 	if (fd_get(socket, &fd) == fd_rsocket) {
-		index = fd_open();
-		if (index < 0)
-			return index;
-
-		ret = raccept(fd, addr, addrlen);
-		if (ret < 0) {
-			fd_close(index, &fd);
-			return ret;
-		}
-
-		fd_store(index, ret, fd_rsocket, fd_ready);
+	    index = real.accept(socket, addr, addrlen); //fd_open(domain, type, protocol);
+	    if (index < 0)
 		return index;
+
+	    ret = raccept(fd, addr, addrlen);
+	    if (ret < 0) {
+		fd_close(index, &fd);
+		return ret;
+	    }
+
+	    fd_store(index, ret, fd_rsocket, fd_ready);
+	    return index;
 	} else if (fd_gets(socket) == fd_fork_listen) {
-		index = fd_open();
-		if (index < 0)
-			return index;
+	    // if real then fd == socket
+	    // Not sure what to do here !!!!
+	    int type = 0;
+	    unsigned int length = sizeof(int);
+	    if(getsockopt(socket, SOL_SOCKET, SO_TYPE, &type, &length) < 0)
+	    {
+		//errno = ENFILE;  // What errno to set????
+		return -1;
+	    }
+	    index = fd_open(AF_INET, type, 0);  // create a socket to use fd
+	    if (index < 0)
+	    	return index;
 
-		ret = real.accept(fd, addr, addrlen);
-		if (ret < 0) {
-			fd_close(index, &fd);
-			return ret;
-		}
+	    ret = real.accept(socket, addr, addrlen);
+	    if (ret < 0) {
+	    	fd_close(index, &fd);
+	    		return ret;
+	    	}
 
-		fd_store(index, ret, fd_normal, fd_fork_passive);
-		return index;
+	    fd_store(index, ret, fd_normal, fd_fork_passive);
+	    return index;
 	} else {
-		return real.accept(fd, addr, addrlen);
+	    return real.accept(fd, addr, addrlen);
 	}
 }
 
@@ -1203,7 +1217,7 @@ int __fxstat(int ver, int socket, struct stat *buf)
 	return ret;
 }
 
-int ioctl(int fd, unsigned long request, char *argp)
+/*int ioctl(int fd, unsigned long request, char *argp)
 {
     // Assumes that fd is a real socket fd, but the fd returned by rsocket()
     // is not, so we must create a real socket and then call the real ioctl()
@@ -1236,4 +1250,4 @@ int ioctl(int fd, unsigned long request, char *argp)
 error:
     errno = errcode;
     return -1;
-}
+    }*/
