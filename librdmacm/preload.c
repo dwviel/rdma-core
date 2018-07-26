@@ -611,7 +611,7 @@ int accept(int socket, struct sockaddr *addr, socklen_t *addrlen)
     }
 
 	if (fd_get(socket, &fd) == fd_rsocket) {
-	    index = fd_open(AF_INET, type, 0); //fd_open(domain, type, protocol);
+	    index = accept(socket, addr, addrlen); //fd_open(AF_INET, type, 0); 
 	    if (index < 0)
 		return index;
 
