@@ -270,7 +270,9 @@ static int fd_open(int domain, int type, int protocol)
 	
 	// Create real shadow socket to return to user
 	// and use as index to rsocket.
+	recursive = 1;
 	index = socket(domain, type, protocol);
+	recursive = 0;
 
 	if (index < 0) {
 		ret = index;
@@ -599,7 +601,6 @@ int listen(int socket, int backlog)
 int accept(int socket, struct sockaddr *addr, socklen_t *addrlen)
 {
     int fd, index, ret;
-
 
     int type = 0;
     unsigned int length = sizeof(int);
@@ -1224,7 +1225,7 @@ int __fxstat(int ver, int socket, struct stat *buf)
     // Assumes that fd is a real socket fd, but the fd returned by rsocket()
     // is not, so we must create a real socket and then call the real ioctl()
 
-    int errcode = 0;
+    //int errcode = 0;
    
     //va_list valist;
 
@@ -1236,8 +1237,8 @@ int __fxstat(int ver, int socket, struct stat *buf)
     //va_end(valist);
 
     // create a local datagram socket
-    int realfd = real.socket(AF_INET, SOCK_DGRAM, 0);
-    if(realfd <= 0)
+    //int realfd = real.socket(AF_INET, SOCK_DGRAM, 0);
+   // if(realfd <= 0)
     {
 	errcode = EBADF;
 	goto error;
