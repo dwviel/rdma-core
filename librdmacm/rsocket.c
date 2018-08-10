@@ -1425,6 +1425,10 @@ static int ds_get_src_addr(struct rsocket *rs,
 	int sock, ret;
 	__be16 port;
 
+	extern int recursive;
+
+	recursive=1;  // guard to ensure following socket related calls use real sockets
+
 	*src_len = sizeof(*src_addr);
 	ret = getsockname(rs->udp_sock, &src_addr->sa, src_len);
 	if (ret || !rs_any_addr(src_addr))
@@ -1444,6 +1448,9 @@ static int ds_get_src_addr(struct rsocket *rs,
 	src_addr->sin.sin_port = port;
 out:
 	close(sock);
+
+	recursive=0;
+
 	return ret;
 }
 
