@@ -571,19 +571,35 @@ real:
 int bind(int socket, const struct sockaddr *addr, socklen_t addrlen)
 {
 	int fd;
-	return (fd_get(socket, &fd) == fd_rsocket) ?
-		rbind(fd, addr, addrlen) : real.bind(fd, addr, addrlen);
+	int ret;
+	if(fd_get(socket, &fd) == fd_rsocket)
+	{
+	    recursive = 1;
+	    ret = rbind(fd, addr, addrlen);
+	    recursive = 0;
+	} 
+	else
+	{
+	    ret = real.bind(fd, addr, addrlen);
+	}
+
+	return ret;
 }
 
 int listen(int socket, int backlog)
 {
 	int fd, ret;
-	if (fd_get(socket, &fd) == fd_rsocket) {
-		ret = rlisten(fd, backlog);
-	} else {
-		ret = real.listen(fd, backlog);
-		if (!ret && fd_gets(socket) == fd_fork)
-			fd_store(socket, fd, fd_normal, fd_fork_listen);
+	if (fd_get(socket, &fd) == fd_rsocket) 
+	{
+	    recursive = 1;	
+	    ret = rlisten(fd, backlog);
+	    recursive = 0;
+	} 
+	else 
+	{
+	    ret = real.listen(fd, backlog);
+	    if (!ret && fd_gets(socket) == fd_fork)
+		fd_store(socket, fd, fd_normal, fd_fork_listen);
 	}
 	return ret;
 }
@@ -800,9 +816,19 @@ ssize_t recvfrom(int socket, void *buf, size_t len, int flags,
 		 struct sockaddr *src_addr, socklen_t *addrlen)
 {
 	int fd;
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rrecvfrom(fd, buf, len, flags, src_addr, addrlen) :
-		real.recvfrom(fd, buf, len, flags, src_addr, addrlen);
+	ssize_t ret;
+	if(fd_fork_get(socket, &fd) == fd_rsocket)
+	{
+	    recursive = 1;
+	    ret = rrecvfrom(fd, buf, len, flags, src_addr, addrlen);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.recvfrom(fd, buf, len, flags, src_addr, addrlen);
+	}
+
+	return ret;
 }
 
 ssize_t recvmsg(int socket, struct msghdr *msg, int flags)
@@ -1020,20 +1046,32 @@ int close(int socket)
 	init_preload();
 	fdi = idm_lookup(&idm, socket);
 	if (!fdi)
-		return real.close(socket);
+	    return real.close(socket);
 
 	if (fdi->dupfd != -1) {
-		ret = close(fdi->dupfd);
-		if (ret)
-			return ret;
+	    ret = close(fdi->dupfd);
+	    if (ret)
+		return ret;
 	}
 
 	if (atomic_fetch_sub(&fdi->refcnt, 1) != 1)
-		return 0;
+	    return 0;
 
 	idm_clear(&idm, socket);
 	real.close(socket);
-	ret = (fdi->type == fd_rsocket) ? rclose(fdi->fd) : real.close(fdi->fd);
+
+
+	if(fdi->type == fd_rsocket)
+	{
+	    recursive = 1;
+	    ret = rclose(fdi->fd);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.close(fdi->fd);
+	}
+
 	free(fdi);
 	return ret;
 }
