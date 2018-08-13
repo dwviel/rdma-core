@@ -1,4 +1,15 @@
+# Need library for manage_recursive
+add_library(manage_recursive SHARED
+  manage_recursive.c
+  )
+
+target_link_libraries(manage_recursive LINK_PUBLIC dl)
+
+install(TARGETS manage_recursive DESTINATION "${CMAKE_INSTALL_LIBDIR}/")
+
+
 publish_headers(rdma
+  manage_recursive.h
   rdma_cma.h
   rdma_cma_abi.h
   rdma_verbs.h
@@ -18,7 +29,10 @@ rdma_library(rdmacm librdmacm.map
   rsocket.c
   )
 target_link_libraries(rdmacm LINK_PUBLIC ibverbs)
-target_link_libraries(rdmacm LINK_PRIVATE ${CMAKE_THREAD_LIBS_INIT})
+target_link_libraries(rdmacm LINK_PRIVATE ${CMAKE_THREAD_LIBS_INIT} )
+
+
+
 
 # The preload library is a bit special, it needs to be open coded
 # Since it is a LD_PRELOAD it has no soname, and is installed in sub dir

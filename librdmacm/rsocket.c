@@ -413,23 +413,6 @@ struct ds_udp_header {
 #define ds_next_qp(qp) container_of((qp)->list.next, struct ds_qp, list)
 
 
-
-/**
- *  Called by rsocket when not intercepted by preload shim.
- */
-
-
-void set_recursive(void)
-{
-}
-
-
-void clear_recursive(void)
-{
-}
-
-
-
 static void write_all(int fd, const void *msg, size_t len)
 {
 	// FIXME: if fd is a socket this really needs to handle EINTR and other conditions.

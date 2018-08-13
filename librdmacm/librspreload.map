@@ -5,6 +5,7 @@
 	global:
 		accept;
 		bind;
+		clear_recursive;
 		close;
 		connect;
 		dup2;
@@ -24,6 +25,7 @@
 		sendfile;
 		sendmsg;
 		sendto;
+		set_recursive;
 		setsockopt;
 		shutdown;
 		socket;

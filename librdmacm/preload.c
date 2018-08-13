@@ -140,16 +140,6 @@ static struct config_entry *config;
 static int config_cnt;
 
 
-void set_recursive(void)
-{
-    recursive = 1;
-}
-
-void clear_recursive(void)
-{
-    recursive = 0;
-}
-
 
 static void free_config(void)
 {
@@ -545,6 +535,27 @@ static void set_rsocket_options(int rsocket)
 	if (sq_inline)
 		rsetsockopt(rsocket, SOL_RDMA, RDMA_INLINE, &sq_inline, sizeof sq_inline);
 }
+
+
+
+
+
+
+void set_recursive(void)
+{
+    recursive = 1;
+}
+
+void clear_recursive(void)
+{
+    recursive = 0;
+}
+
+
+
+
+
+
 
 int socket(int domain, int type, int protocol)
 {

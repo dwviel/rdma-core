@@ -20,11 +20,14 @@ rdma_executable(tcpip_server_loop tcpip_server_loop.c)
 rdma_executable(udpip_listener udpip_listener.c)
 rdma_executable(udpip_talker udpip_talker.c)
 
+#target_link_libraries(udpip_listener)
+#target_link_libraries(udpip_talker)
+
 rdma_executable(udpip_listener_r udpip_listener_r.c)
 rdma_executable(udpip_talker_r udpip_talker_r.c)
 
 #target_link_libraries( udpip_listener_r rdmacm)
 #target_link_libraries( udpip_talker_r rdmacm)
 
-target_link_libraries( udpip_listener_r ${BUILD_LIB}/librdmacm.so)
-target_link_libraries( udpip_talker_r ${BUILD_LIB}/librdmacm.so)
+target_link_libraries( udpip_listener_r ${BUILD_LIB}/librdmacm.so manage_recursive)
+target_link_libraries( udpip_talker_r ${BUILD_LIB}/librdmacm.so manage_recursive)
