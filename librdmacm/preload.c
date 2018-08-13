@@ -58,6 +58,8 @@
 #include <rdma/rsocket.h>
 #include "cma.h"
 #include "indexer.h"
+#include "manage_recursive.h"
+
 
 struct socket_calls {
 	int (*socket)(int domain, int type, int protocol);
@@ -136,6 +138,18 @@ struct config_entry {
 
 static struct config_entry *config;
 static int config_cnt;
+
+
+void set_recursive(void)
+{
+    recursive = 1;
+}
+
+void clear_recursive(void)
+{
+    recursive = 0;
+}
+
 
 static void free_config(void)
 {

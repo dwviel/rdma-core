@@ -57,6 +57,8 @@
 #include <rdma/rsocket.h>
 #include "cma.h"
 #include "indexer.h"
+#include "manage_recursive.h"
+
 
 #define RS_OLAP_START_SIZE 2048
 #define RS_MAX_TRANSFER 65536
@@ -66,6 +68,10 @@
 #define RS_QP_CTRL_SIZE 4	/* must be power of 2 */
 #define RS_CONN_RETRIES 6
 #define RS_SGL_SIZE 2
+
+//extern __thread int recursive;
+
+
 static struct index_map idm;
 static pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 
@@ -405,6 +411,24 @@ struct ds_udp_header {
 #define DS_UDP_IPV6_HDR_LEN 28
 
 #define ds_next_qp(qp) container_of((qp)->list.next, struct ds_qp, list)
+
+
+
+/**
+ *  Called by rsocket when not intercepted by preload shim.
+ */
+
+
+void set_recursive(void)
+{
+}
+
+
+void clear_recursive(void)
+{
+}
+
+
 
 static void write_all(int fd, const void *msg, size_t len)
 {
@@ -1425,9 +1449,8 @@ static int ds_get_src_addr(struct rsocket *rs,
 	int sock, ret;
 	__be16 port;
 
-	extern int recursive;
 
-	recursive=1;  // guard to ensure following socket related calls use real sockets
+	set_recursive(); // guard to ensure following socket related calls use real sockets
 
 	*src_len = sizeof(*src_addr);
 	ret = getsockname(rs->udp_sock, &src_addr->sa, src_len);
@@ -1449,7 +1472,7 @@ static int ds_get_src_addr(struct rsocket *rs,
 out:
 	close(sock);
 
-	recursive=0;
+	clear_recursive();
 
 	return ret;
 }
