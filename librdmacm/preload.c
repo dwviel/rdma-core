@@ -92,6 +92,9 @@ struct socket_calls {
 	int (*dup2)(int oldfd, int newfd);
 	ssize_t (*sendfile)(int out_fd, int in_fd, off_t *offset, size_t count);
 	int (*fxstat)(int ver, int fd, struct stat *buf);
+        int (*select)(int nfds, fd_set *readfds, fd_set *writefds,
+		      fd_set *exceptfds, struct timeval *timeout);
+
 };
 
 
@@ -418,6 +421,7 @@ static void init_preload(void)
 	real.dup2 = dlsym(RTLD_NEXT, "dup2");
 	real.sendfile = dlsym(RTLD_NEXT, "sendfile");
 	real.fxstat = dlsym(RTLD_NEXT, "__fxstat");
+	real.select = dlsym(RTLD_NEXT, "select");
 
 	rs.socket = dlsym(RTLD_DEFAULT, "rsocket");
 	rs.bind = dlsym(RTLD_DEFAULT, "rbind");
@@ -537,9 +541,12 @@ static void set_rsocket_options(int rsocket)
 }
 
 
-
-
-
+/*
+ *  Protective flags to ensure that a call to an rsocket function
+ *  does not recurse to call another rsocket function.
+ *  In other words, rsocket code expects to call only real
+ *  socket related functions.
+ */
 
 void set_recursive(void)
 {
@@ -552,14 +559,8 @@ void clear_recursive(void)
 }
 
 
-
-
-
-
-
 int socket(int domain, int type, int protocol)
 {
-  //static __thread int recursive;
 	int index, ret;
 
 	init_preload();
@@ -597,7 +598,7 @@ int bind(int socket, const struct sockaddr *addr, socklen_t addrlen)
 {
 	int fd;
 	int ret;
-	if(fd_get(socket, &fd) == fd_rsocket)
+	if( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
 	{
 	    recursive = 1;
 	    ret = rbind(fd, addr, addrlen);
@@ -614,7 +615,7 @@ int bind(int socket, const struct sockaddr *addr, socklen_t addrlen)
 int listen(int socket, int backlog)
 {
 	int fd, ret;
-	if (fd_get(socket, &fd) == fd_rsocket) 
+	if ( (fd_get(socket, &fd) == fd_rsocket) && !recursive ) 
 	{
 	    recursive = 1;	
 	    ret = rlisten(fd, backlog);
@@ -633,12 +634,15 @@ int accept(int socket, struct sockaddr *addr, socklen_t *addrlen)
 {
 	int fd, index, ret;
 
-	if (fd_get(socket, &fd) == fd_rsocket) {
+	if ( (fd_get(socket, &fd) == fd_rsocket) && !recursive ) 
+	    {
 		index = fd_open();
 		if (index < 0)
 			return index;
 
+		recursive = 1;
 		ret = raccept(fd, addr, addrlen);
+		recursive = 0;
 		if (ret < 0) {
 			fd_close(index, &fd);
 			return ret;
@@ -812,16 +816,20 @@ int connect(int socket, const struct sockaddr *addr, socklen_t addrlen)
 {
 	int fd, ret;
 
-	if (fd_get(socket, &fd) == fd_rsocket) {
+	if ( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
+	    {
+	        recursive = 1;
 		ret = rconnect(fd, addr, addrlen);
+		recursive = 0;
 		if (!ret || errno == EINPROGRESS)
 			return ret;
 
 		ret = transpose_socket(socket, fd_normal);
 		if (ret < 0)
 			return ret;
-
+		recursive = 1;
 		rclose(fd);
+		recursive = 0;
 		fd = ret;
 	} else if (fd_gets(socket) == fd_fork) {
 		fd_store(socket, fd, fd_normal, fd_fork_active);
@@ -832,9 +840,19 @@ int connect(int socket, const struct sockaddr *addr, socklen_t addrlen)
 
 ssize_t recv(int socket, void *buf, size_t len, int flags)
 {
-	int fd;
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rrecv(fd, buf, len, flags) : real.recv(fd, buf, len, flags);
+    int fd, ret;
+    if( (fd_fork_get(socket, &fd) == fd_rsocket)  && !recursive )
+    {
+	recursive = 1;
+	ret = rrecv(fd, buf, len, flags);
+	recursive = 0;
+    }
+    else
+    {
+	ret = real.recv(fd, buf, len, flags);
+    }
+ 
+    return ret;
 }
 
 ssize_t recvfrom(int socket, void *buf, size_t len, int flags,
@@ -842,7 +860,7 @@ ssize_t recvfrom(int socket, void *buf, size_t len, int flags,
 {
 	int fd;
 	ssize_t ret;
-	if(fd_fork_get(socket, &fd) == fd_rsocket)
+	if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
 	{
 	    recursive = 1;
 	    ret = rrecvfrom(fd, buf, len, flags, src_addr, addrlen);
@@ -858,39 +876,79 @@ ssize_t recvfrom(int socket, void *buf, size_t len, int flags,
 
 ssize_t recvmsg(int socket, struct msghdr *msg, int flags)
 {
-	int fd;
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rrecvmsg(fd, msg, flags) : real.recvmsg(fd, msg, flags);
+    int fd, ret;
+    if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rrecvmsg(fd, msg, flags);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.recvmsg(fd, msg, flags);
+	}
+
+	return ret;
 }
 
 ssize_t read(int socket, void *buf, size_t count)
 {
-	int fd;
+    int fd, ret;
 	init_preload();
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rread(fd, buf, count) : real.read(fd, buf, count);
+	if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rread(fd, buf, count);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.read(fd, buf, count);
+	}
+
+	return ret;
 }
 
 ssize_t readv(int socket, const struct iovec *iov, int iovcnt)
 {
-	int fd;
+    int fd, ret;
 	init_preload();
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rreadv(fd, iov, iovcnt) : real.readv(fd, iov, iovcnt);
+	if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rreadv(fd, iov, iovcnt);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.readv(fd, iov, iovcnt);
+	}
+
+	return ret;
 }
 
 ssize_t send(int socket, const void *buf, size_t len, int flags)
 {
-	int fd;
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rsend(fd, buf, len, flags) : real.send(fd, buf, len, flags);
+    int fd, ret;
+    if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rsend(fd, buf, len, flags);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.send(fd, buf, len, flags);
+	}
+
+	return ret;
 }
 
 ssize_t sendto(int socket, const void *buf, size_t len, int flags,
 		const struct sockaddr *dest_addr, socklen_t addrlen)
 {
 	int fd;
-	if(fd_fork_get(socket, &fd) == fd_rsocket) 
+	if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
 	  {
 	    int ret = 0;
 	    recursive = 1;
@@ -907,25 +965,55 @@ ssize_t sendto(int socket, const void *buf, size_t len, int flags,
 
 ssize_t sendmsg(int socket, const struct msghdr *msg, int flags)
 {
-	int fd;
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rsendmsg(fd, msg, flags) : real.sendmsg(fd, msg, flags);
+    int fd, ret;
+    if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rsendmsg(fd, msg, flags);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.sendmsg(fd, msg, flags);
+	}
+
+	return ret;
 }
 
 ssize_t write(int socket, const void *buf, size_t count)
 {
-	int fd;
+    int fd, ret;
 	init_preload();
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rwrite(fd, buf, count) : real.write(fd, buf, count);
+	if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rwrite(fd, buf, count);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.write(fd, buf, count);
+	}
+
+	return ret;
 }
 
 ssize_t writev(int socket, const struct iovec *iov, int iovcnt)
 {
-	int fd;
+    int fd, ret;
 	init_preload();
-	return (fd_fork_get(socket, &fd) == fd_rsocket) ?
-		rwritev(fd, iov, iovcnt) : real.writev(fd, iov, iovcnt);
+	if( (fd_fork_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rwritev(fd, iov, iovcnt);
+	    recursive = 0;
+	}
+	else
+	{
+	    real.writev(fd, iov, iovcnt);
+	}
+
+	return ret;
 }
 
 static struct pollfd *fds_alloc(nfds_t nfds)
@@ -951,13 +1039,14 @@ int poll(struct pollfd *fds, nfds_t nfds, int timeout)
 
 	init_preload();
 	for (i = 0; i < nfds; i++) {
-		if (fd_gett(fds[i].fd) == fd_rsocket)
+	    if ( (fd_gett(fds[i].fd) == fd_rsocket) && !recursive )
 			goto use_rpoll;
 	}
 
 	return real.poll(fds, nfds, timeout);
 
 use_rpoll:
+	recursive = 1;
 	rfds = fds_alloc(nfds);
 	if (!rfds)
 		return ERR(ENOMEM);
@@ -972,6 +1061,8 @@ use_rpoll:
 
 	for (i = 0; i < nfds; i++)
 		fds[i].revents = rfds[i].revents;
+
+	recursive = 0;
 
 	return ret;
 }
@@ -1033,6 +1124,10 @@ static int rs_convert_timeout(struct timeval *timeout)
 int select(int nfds, fd_set *readfds, fd_set *writefds,
 	   fd_set *exceptfds, struct timeval *timeout)
 {
+    if(recursive == 1)
+	return real.select(nfds, readfds, writefds, exceptfds, timeout);
+ 
+        recursive = 1;
 	struct pollfd *fds;
 	int ret;
 
@@ -1053,14 +1148,27 @@ int select(int nfds, fd_set *readfds, fd_set *writefds,
 	if (ret > 0)
 		ret = rpoll_to_select(fds, nfds, readfds, writefds, exceptfds);
 
+	recursive = 0;
+
+	
 	return ret;
 }
 
 int shutdown(int socket, int how)
 {
-	int fd;
-	return (fd_get(socket, &fd) == fd_rsocket) ?
-		rshutdown(fd, how) : real.shutdown(fd, how);
+    int fd, ret;
+    if( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rshutdown(fd, how);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.shutdown(fd, how);
+	}
+
+	return ret;
 }
 
 int close(int socket)
@@ -1086,7 +1194,7 @@ int close(int socket)
 	real.close(socket);
 
 
-	if(fdi->type == fd_rsocket)
+	if( (fdi->type == fd_rsocket) && !recursive )
 	{
 	    recursive = 1;
 	    ret = rclose(fdi->fd);
@@ -1103,37 +1211,73 @@ int close(int socket)
 
 int getpeername(int socket, struct sockaddr *addr, socklen_t *addrlen)
 {
-	int fd;
-	return (fd_get(socket, &fd) == fd_rsocket) ?
-		rgetpeername(fd, addr, addrlen) :
-		real.getpeername(fd, addr, addrlen);
+    int fd, ret;
+    if( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rgetpeername(fd, addr, addrlen);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.getpeername(fd, addr, addrlen);
+	}
+
+	return ret;
 }
 
 int getsockname(int socket, struct sockaddr *addr, socklen_t *addrlen)
 {
-	int fd;
+    int fd, ret;
 	init_preload();
-	return (fd_get(socket, &fd) == fd_rsocket) ?
-		rgetsockname(fd, addr, addrlen) :
-		real.getsockname(fd, addr, addrlen);
+	if( (fd_get(socket, &fd) == fd_rsocket)  && !recursive )
+	{
+	    recursive = 1;
+	    ret = rgetsockname(fd, addr, addrlen);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.getsockname(fd, addr, addrlen);
+	}
+
+	return ret;
 }
 
 int setsockopt(int socket, int level, int optname,
 		const void *optval, socklen_t optlen)
 {
-	int fd;
-	return (fd_get(socket, &fd) == fd_rsocket) ?
-		rsetsockopt(fd, level, optname, optval, optlen) :
-		real.setsockopt(fd, level, optname, optval, optlen);
+    int fd, ret;
+    if( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rsetsockopt(fd, level, optname, optval, optlen);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.setsockopt(fd, level, optname, optval, optlen);
+	}
+
+	return ret;
 }
 
 int getsockopt(int socket, int level, int optname,
 		void *optval, socklen_t *optlen)
 {
-	int fd;
-	return (fd_get(socket, &fd) == fd_rsocket) ?
-		rgetsockopt(fd, level, optname, optval, optlen) :
-		real.getsockopt(fd, level, optname, optval, optlen);
+    int fd, ret;
+    if( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
+	{
+	    recursive = 1;
+	    ret = rgetsockopt(fd, level, optname, optval, optlen);
+	    recursive = 0;
+	}
+	else
+	{
+	    ret = real.getsockopt(fd, level, optname, optval, optlen);
+	}
+
+	return ret;
 }
 
 int fcntl(int socket, int cmd, ... /* arg */)
@@ -1151,8 +1295,16 @@ int fcntl(int socket, int cmd, ... /* arg */)
 	case F_GETOWN:
 	case F_GETSIG:
 	case F_GETLEASE:
-		ret = (fd_get(socket, &fd) == fd_rsocket) ?
-			rfcntl(fd, cmd) : real.fcntl(fd, cmd);
+	    if( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
+		{
+		    recursive = 1;
+		    ret = rfcntl(fd, cmd);
+		    recursive = 0;
+		}
+		else
+		{
+		    ret = real.fcntl(fd, cmd);
+		}
 		break;
 	case F_DUPFD:
 	/*case F_DUPFD_CLOEXEC:*/
@@ -1163,13 +1315,29 @@ int fcntl(int socket, int cmd, ... /* arg */)
 	case F_SETLEASE:
 	case F_NOTIFY:
 		lparam = va_arg(args, long);
-		ret = (fd_get(socket, &fd) == fd_rsocket) ?
-			rfcntl(fd, cmd, lparam) : real.fcntl(fd, cmd, lparam);
+		if( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
+		{
+		    recursive = 1;
+		    ret = rfcntl(fd, cmd, lparam);
+		    recursive = 0;
+		}
+		else
+		{
+		    ret = real.fcntl(fd, cmd, lparam);
+		}
 		break;
 	default:
 		pparam = va_arg(args, void *);
-		ret = (fd_get(socket, &fd) == fd_rsocket) ?
-			rfcntl(fd, cmd, pparam) : real.fcntl(fd, cmd, pparam);
+		if( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
+		{
+		    recursive = 1;
+		    ret = rfcntl(fd, cmd, pparam);
+		    recursive = 0;
+		}
+		else
+		{
+		    ret = real.fcntl(fd, cmd, pparam);
+		}
 		break;
 	}
 	va_end(args);
@@ -1234,9 +1402,10 @@ ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
 	int fd;
 	size_t ret;
 
-	if (fd_get(out_fd, &fd) != fd_rsocket)
+	if ( (fd_get(out_fd, &fd) != fd_rsocket) || recursive )
 		return real.sendfile(fd, in_fd, offset, count);
 
+	recursive = 1;
 	file_addr = mmap(NULL, count, PROT_READ, 0, in_fd, offset ? *offset : 0);
 	if (file_addr == (void *) -1)
 		return -1;
@@ -1245,6 +1414,8 @@ ssize_t sendfile(int out_fd, int in_fd, off_t *offset, size_t count)
 	if ((ret > 0) && offset)
 		lseek(in_fd, ret, SEEK_CUR);
 	munmap(file_addr, count);
+	recursive = 0;
+
 	return ret;
 }
 
@@ -1253,11 +1424,16 @@ int __fxstat(int ver, int socket, struct stat *buf)
 	int fd, ret;
 
 	init_preload();
-	if (fd_get(socket, &fd) == fd_rsocket) {
-		ret = real.fxstat(ver, socket, buf);
-		if (!ret)
-			buf->st_mode = (buf->st_mode & ~S_IFMT) | __S_IFSOCK;
-	} else {
+	if ( (fd_get(socket, &fd) == fd_rsocket) && !recursive ) 
+	{
+	    recursive = 1;
+	    ret = real.fxstat(ver, socket, buf);
+	    if (!ret)
+		buf->st_mode = (buf->st_mode & ~S_IFMT) | __S_IFSOCK;
+	    recursive = 0;
+	}
+	else 
+	{
 		ret = real.fxstat(ver, fd, buf);
 	}
 	return ret;
