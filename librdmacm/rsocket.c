@@ -3626,6 +3626,22 @@ int rgetsockopt(int socket, int level, int optname,
 			*optlen = sizeof(int);
 			rs->err = 0;
 			break;
+		case SO_TYPE:
+		        if(rs->cm_id->ps == RDMA_PS_TCP)
+			{
+			    *((int *)optval) = SOCK_STREAM;
+			    *optlen = sizeof(int);
+			}
+			else if(rs->cm_id->ps == RDMA_PS_UDP)
+			{
+			    *((int *)optval) = SOCK_DGRAM;
+			    *optlen = sizeof(int);
+			}
+			else
+			{
+			    ret = ENOTSUP;
+			}
+		        break;
 		default:
 			ret = ENOTSUP;
 			break;
