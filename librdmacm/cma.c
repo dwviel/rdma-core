@@ -864,7 +864,9 @@ int ucma_complete(struct rdma_cm_id *id)
 		return ret;
 
 	if (id_priv->id.event->status) {
-		if (id_priv->id.event->event == RDMA_CM_EVENT_REJECTED)
+	    if ( (id_priv->id.event->event == RDMA_CM_EVENT_REJECTED) ||
+		 (id_priv->id.event->event == RDMA_CM_EVENT_CONNECT_ERROR) ||
+		 (id_priv->id.event->event == RDMA_CM_EVENT_MULTICAST_ERROR) )
 			ret = ERR(ECONNREFUSED);
 		else if (id_priv->id.event->status < 0)
 			ret = ERR(-id_priv->id.event->status);
