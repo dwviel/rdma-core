@@ -903,6 +903,65 @@ static inline enum fd_type fd_fork_get(int index, int *fd)
 int connect(int socket, const struct sockaddr *addr, socklen_t addrlen)
 {
 	int fd, ret;
+	// BIG HACK
+	// We are going to try to just allow the DataNode block data transfers to use 
+	// the RDMA interface.  All other interfaces will use real sockets.
+	// We will need to override the original socket() that now defaults to real sockets,
+	// and create an rsocket here on the fly with the same socket fd number.  Yeah,
+	// this gets ugly!
+
+	// Should be an IPv4 addr, else we got other problems.
+	struct sockaddr_in *inet_addr = (struct sockaddr_in*)addr;
+	
+	// Check if port number is the one we want: 50010
+	if(inet_addr->sin_port == htons(50010))
+	{
+	    // If so, create rsocket
+	    // MUST use passed in socket fd 'socket' for index!!!!
+
+	    // get domain, type, and protocol for existing socket
+	    int domain = 0;
+	    int type = 0;
+	    int protocol = 0;
+
+	    struct sockaddr_storage sock_addr;
+	    socklen_t sock_addr_size = sizeof(struct sockaddr_storage);
+	    if(getsockname(socket, (struct sockaddr*)&sock_addr, &sock_addr_size) != 0)
+	    {
+		return -1;
+	    }
+	    struct sockaddr_in *ret_sock_addr = (struct sockaddr_in*)&sock_addr;
+	    domain = ret_sock_addr->sin_family;
+
+	    socklen_t length = sizeof(socklen_t);
+	    getsockopt(socket, SOL_SOCKET, SO_TYPE, &type, &length );
+
+	    // *should* be able to leave protocol value as 0
+
+	    //int index = fd_open(domain, type, protocol);
+	    int index = socket;  // Hack of using passed in socket fd
+	    if (index < 0)
+		return index;
+	    
+	    if (fork_support && (domain == PF_INET || domain == PF_INET6) &&
+		(type == SOCK_STREAM) && (!protocol || protocol == IPPROTO_TCP)) {
+		ret = real.socket(domain, type, protocol);
+		if (ret < 0)
+		    return ret;
+		fd_store(index, ret, fd_normal, fd_fork);
+		return index;
+	    }
+	    
+	    recursive = 1;
+	    ret = rsocket(domain, type, protocol);
+	    recursive = 0;
+	    if (ret >= 0) {
+		fd_store(index, ret, fd_rsocket, fd_ready);
+		set_rsocket_options(ret);
+		return index;
+	    }
+	    fd_close(index, &ret);
+	}
 
 	if ( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
 	    {
