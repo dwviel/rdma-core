@@ -625,7 +625,9 @@ int bind(int socket, const struct sockaddr *addr, socklen_t addrlen)
 	struct sockaddr_in *inet_addr = (struct sockaddr_in*)addr;
 	
 	// Check if port number is the one we want: 50010
-	if(inet_addr->sin_port == htons(50010))
+	if( (inet_addr->sin_port == htons(50010)) ||
+	    (inet_addr->sin_port == htons(50020)) ||
+	    (inet_addr->sin_port == htons(50075)) )
 	{
 	    // If so, check for rsocket
 	    if ( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
@@ -920,7 +922,9 @@ int connect(int socket, const struct sockaddr *addr, socklen_t addrlen)
 	struct sockaddr_in *inet_addr = (struct sockaddr_in*)addr;
 	
 	// Check if port number is the one we want: 50010
-	if(inet_addr->sin_port == htons(50010))
+	if( (inet_addr->sin_port == htons(50010)) ||
+	    (inet_addr->sin_port == htons(50020)) ||
+	    (inet_addr->sin_port == htons(50075)) )
 	{
 	    // If so, check for rsocket
 	    if ( (fd_get(socket, &fd) == fd_rsocket) && !recursive )
